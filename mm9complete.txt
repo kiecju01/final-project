@@ -1,4 +1,4 @@
-GeneName	RefSeq
+GeneName	NA
 Lypla1	NM_008866
 Lypla1	NM_008866
 Tcea1	NM_011541

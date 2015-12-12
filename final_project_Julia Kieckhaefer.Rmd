@@ -1,0 +1,293 @@
+---
+Identification of Foxa1 and Foxa2 colonic epithlial target loci by integration of ChIP-seq and RNA-seq data
+Julia Kieckhaefer
+---
+
+### Overview
+The goal of this project is to to identify genes in the colon whose levels of expression are directly regulated by the transcription factors Foxa1 and Foxa2 and to determine if differentially expressed genes in Foxa1/a2-deficient colon are part of specific pathways or gene sets. The data I used were Foxa1 and Foxa2 ChIP-Seq analysis on wild type mouse colon,  and RNA-Seq differential expression data from mutant and control whole colon. Through my analyses, I intend to better understand the role of Foxa1/a2 in the colon, and to visualize the data for publication.
+
+For this project, I consulted with: Ian Silverman, post-doc, Departments of Biology and Genetics; Ben Voight, Assistant Professor of Pharmacology, Department of Pharmacology; and Casey Brown, Assistant Professor of Genetics, Department of Genetics.
+-Dr. Silverman suggested that I construct a workflow using different internet resources and software. Thus, for my project, I could use data downloaded from the UCSC table browser, reformatted using Python, and then analyzed and visualized using R.
+-Dr. Voight suggested that I perform quality control tests (e.g. unsupervised clustering) in order to verify the data are high enough quality that further statistical testing can be performed.
+-Dr. Brown explained that there is a possibility the overlap between genes identified by ChIP-seq and by RNA-seq may occur by chance, so to confirm the overlap is significant, it is important to perform hypergeometric tests. I also learned that there are different algorithms that can be used during ChIP-seq analysis to assign genes to protein-bound regions. Therefore, the same raw data may yield different results depending on which methods are used. 
+Link to my final project GitHub repository: [Final_Project](https://github.com/kiecju01/final-project)
+
+### Introduction 
+Inflammatory bowel disease (IBD) genome-wide association studies (GWAS) have implicated multiple genetic loci associated with genes expressed in the intestinal epithelium, including regulators of intestinal barrier function. Expression of the main component of intestinal mucus, Muc2, is downregulated by deletion of the paralogous transcription factors Foxa1 and Foxa2 in the mouse intestinal epithelium. Mice deficient in Muc2 develop intestinal inflammation and colorectal cancer, suggesting a role for the Foxa factors in the maintenance of an intact mucus layer and intestinal epithelial health. Blind histological damage scoring of control and Foxa1/a2-deficient colon revealed mutants aged >7 months show a significantly increased susceptibility to colitis (colonic inflammation). To determine the genetic mechanism resulting in colitis in Foxa1/a2 mutants, I performed Foxa1 and Foxa2 ChIP-Seq analysis on wild type mouse colon, followed by RNA-Seq on Foxa1/a2-deficient and control aged colon. The goal of this project is to use the ChIP-seq and RNA-seq data to identify genes in the colon whose levels of expression are directly regulated by the transcription factors Foxa1 and Foxa2, and to determine if differentially expressed genes in Foxa1/a2-deficient colon are part of specific pathways or gene sets. Through these analyses, I intend to better understand the role of Foxa1/a2 in the colon and to visualize the data for publication.
+
+This problem is interdisciplinary, as it involves a comprehensive understanding of genetic principles and computational analysis. For this reason, it was important for me to consult with people who are studying the fields of eukaryotic gene regulation on the level of specific DNA-protein interactions, genomic analysis of expression, and computational biology. I learned that it is important while collecting genomic data to perform experiments in parallel in order to reduce batch effects, and to perform quality control tests (e.g. unsupervised clustering) in order to verify the data are high enough quality that further statistical testing can be performed. Understanding how proteins interact with DNA to affect the transcriptome allowed me to recognize that RNA-seq data can be used to validate protein binding sites identified by ChIP-seq: sites where there is both protein bound to the DNA and there are expression changes in the associated gene are suggestive of a functionally relevant locus. From consulting with experts in computational biology, I learned that there is a possibility the overlap between genes identified by ChIP-seq and by RNA-seq may occur by chance, so to confirm the overlap is significant, it is important to perform hypergeometric tests. Additionally, I learned that there are different algorithms that can be used during ChIP-seq analysis to assign genes to protein-bound regions. Therefore, the same raw data may yield different results depending on which methods are used. Finally, from talking to experts in computation and statistics, I learned that sometimes the most efficient way to perform analyses is to construct a workflow using different internet resources and software. Thus, for my project, I could use data downloaded from the UCSC table browser, reformatted using Python, and then analyzed and visualized using R.
+
+### Methods
+Methods:  
+The raw data consist of the aligned, cleaned, and normalized ChIP-seq and RNA-seq output generated by the NGSC. The overall goal of this project is to evaluate my RNA-seq data in order to identify important genes regulated by the Foxa1 and Foxa2 transcription factors. More specifically, the goals for these data are to validate that the RNA-seq data are normalized, visualize the gene expression changes by making a heatmap, calculate the statistical significance of ChIP-seq target and RNA-seq differentially expressed gene overlap by hypergeometric analysis in order to confirm Foxa1/a2 are actually regulating these genes, and to perform gene set enrichment analysis (GSEA) in order to identify any possible pathways being regulated by Foxa1/a2 in the colon.
+
+R code:
+
+
+**In order to analyze my RNA-seq data, I needed to select relevant data from the total RNA-seq data produced by NGSC. Below, I make an RNA-seq data frame and export to text file.**
+```{r eval = TRUE}
+
+RNAseq = read.table("/Users/juliakieckhaefer/Desktop/Data Science/final-project/Compare.txt", header = T, sep = "\t")
+head(RNAseq)
+
+#There are more columns than I need in the original file, so I am selecting some of them for a smaller data frame.
+RNAseq.small <- data.frame(RNAseq$Gene, RNAseq$Transcript, RNAseq$Best, RNAseq$EDGE.M.log2.Mouse_Foxa1a2.def_Proximal.Mouse_Control_Proximal, RNAseq$EDGE.FDR.0.1.Mouse_Foxa1a2.def_Proximal.Mouse_Control_Proximal, RNAseq$X462P, RNAseq$X1850P, RNAseq$X18294P, RNAseq$X1847P, RNAseq$X1088P, RNAseq$X20699P)
+head(RNAseq.small)
+colnames(RNAseq.small) <- c("Gene","Transcript", "Best.transcript", "Log2.ratio", "FDR", "Ctrl462", "Ctrl1850", "Ctrl18294", "Mut1847", "Mut1088", "Mut20699")
+head(RNAseq.small)
+
+# Select unique data (best transcript = 1 labels most highly expressed transcript) that fall below 5% FDR cutoff for remaining analysis. Save as text file.
+library(dplyr)
+
+RNAseq.sig <- RNAseq.small %>%
+  filter(FDR <= 0.05) %>%
+  filter(Best.transcript == 1)
+head(RNAseq.sig)
+
+write.table(RNAseq.sig, "/Users/juliakieckhaefer/Desktop/Data Science/final-project/RNAsig05FDR.txt", quote = FALSE, row.names = FALSE, sep = "\t")
+
+```
+
+**In order to analyze my ChIP-seq data, I needed to select relevant data from the total ChIP-seq data produced by NGSC. Below, I clean and import total ChIPseq data produced by NGSC, then export it to a text file.**
+```{r eval = TRUE}
+# Open processed data from NGSC
+ChIPseq = read.table("/Users/juliakieckhaefer/Desktop/Data Science/final-project/foxa12_minus_D2408_F25142_clean_union_mm9.txt", header = T, sep = "\t")
+head(ChIPseq)
+
+# There are more columns than I need in the original file, so I am removing empty columns and NAs.
+ChIPseq$Span.Strand <- NULL
+ChIPseq$Span.Score<- NULL
+ChIPseq$Span.Pvalue <- NULL
+ChIPseq$Span.FDR <- NULL
+ChIPseq$Span.ContentTag<- NULL
+ChIP.complete <- ChIPseq[complete.cases(ChIPseq), ]
+
+# To be able to merge RNA-seq data and ChIP-seq data by gene name, I need to split RefSeq:GeneID column into two columns.
+RefSeq.Gene <-strsplit(as.character(ChIP.complete$Gene.Name), ':')
+library(plyr)
+Ref.list <- ldply(RefSeq.Gene)
+colnames(Ref.list) <- c("RefSeq", "Gene")
+head(Ref.list)
+
+# Create data frame of relevant data
+ChIP.df <- data.frame("Chromosome" = ChIP.complete$Span.Chromosome, "Begin" = ChIP.complete$Span.BeginBp, "End" = ChIP.complete$Span.EndBp, "GeneDistance" = ChIP.complete$DistanceBp, "GeneBegin" = ChIP.complete$Gene.BeginBp, "GeneEnd" = ChIP.complete$Gene.EndBp, Ref.list)
+head(ChIP.df)                  
+
+write.table(ChIP.df, "/Users/juliakieckhaefer/Desktop/Data Science/final-project/ChIPcomplete.txt", quote = FALSE, row.names = FALSE, sep = "\t")
+
+```
+
+**To find which genes may be directly regulated by Foxa1/a2, I intersect clean ChIPseq and RNAseq data as follows:**
+```{r eval = TRUE}
+
+combined <- merge(RNAseq.sig, ChIP.df, by = "Gene")
+head(combined)
+write.table(combined, "/Users/juliakieckhaefer/Desktop/Data Science/final-project/RNA_ChIPcombined.txt", quote = FALSE, row.names = FALSE, sep = "\t")
+
+# I can return to this text file later to sort it, look at the gene names, and to perform gene ontology analysis.
+```
+
+**In order to perform hypergeometric analysis, the number of genes in mm9 needs to be calculated. To do this, the complete list of mm9 genes needs to be made:**
+```{r eval = TRUE}
+
+mm9.all = read.table("/Users/juliakieckhaefer/Desktop/Data Science/final-project/mm9geneID.txt", header = F, sep = "\t")
+head(mm9.all)
+
+# Since ChIP-seq data only represent candidate target genes and have no transcript data, only the official gene symbols can be used for hypergeometric analysis calculations. Therefore, the only column I need is "GeneName".
+mm9 <- data.frame(mm9.all$V5)
+colnames(mm9) <- "GeneName"
+head(mm9)
+
+# Get rid of missing data (There are none, but doing it anyway to be sure).
+mm9.complete <- mm9[complete.cases(mm9), ]
+
+write.table(mm9.complete, "/Users/juliakieckhaefer/Desktop/Data Science/final-project/mm9complete.txt",  row.names = FALSE, quote=FALSE, sep = "\t")
+
+```
+
+**To calculate the number of genes for each part of the hypergeometric analysis, I used python to count unique genes for each category. The script is as follows:**
+import os
+
+**Find number of genes identified by ChIP-seq:**
+
+ChIPgenes = []
+
+**Open ChIP-seq data spreadsheet**
+ChIPsheet = "ChIPcomplete.txt"
+ChIPFile = open(ChIPsheet, 'r')
+ChIPFile.readline() #skip header
+for line in ChIPFile:
+	line = line.rstrip('\n')
+	ChIPdata = line.split() #splits line on tabs
+	if ChIPdata[7] not in ChIPgenes:
+		ChIPgenes.append(ChIPdata[7])
+
+print "Genes identified by ChIP-seq:", len(ChIPgenes)
+
+ChIPFile.close()
+
+###Find number of genes identified by RNA-seq:
+
+RNAgenes = []
+
+**Open ChIP-seq data spreadsheet**
+RNAsheet = "RNAsig05FDR.txt"
+RNAFile = open(RNAsheet, 'r')
+RNAFile.readline() #skip header
+for line in RNAFile:
+	line = line.rstrip('\n')
+	RNAdata = line.split() #splits line on tabs
+	if RNAdata[0] not in RNAgenes:
+		RNAgenes.append(RNAdata[0])
+
+print "Genes identified by RNA-seq:", len(RNAgenes)
+
+RNAFile.close()
+
+### Find number of genes overlapping between RNA-seq and ChIP-seq data:
+
+RNAChIP = []
+
+for gene in RNAgenes:
+	if gene in ChIPgenes:
+		RNAChIP.append(gene)
+
+print "Genes identified by both RNA-seq and ChIP-seq:", len(RNAChIP)
+
+### Find number of genes in mm9:
+	** Dowloaded list of annotated genes in mm9 from UCSC table browser. Not all genes have been given names. Since the way I am merging the ChIP-seq and RNA-seq lists is through gene names, I have to calculate how many unique names, and not transcripts, there are in mm9. To get rid of NAs so that the python script will work, used R to open UCSC file, get rid of NAs, and write a new file.**
+
+mm9 = []
+
+**Open mm9 gene list**
+IDsheet = "mm9complete.txt"
+IDFile = open(IDsheet, 'r')
+IDFile.readline() #skip header
+for line in IDFile:
+	line = line.rstrip('\n')
+	IDdata = line.split() #splits line on tabs
+	if IDdata[0] not in mm9:
+		mm9.append(IDdata[0])
+
+print "Genes in mm9:", len(mm9)
+	
+IDFile.close()		
+____________________________________________
+
+**The python output is as follows:**
+trc122:final-project juliakieckhaefer$ python hypergeo.py
+Genes identified by ChIP-seq: 4037
+Genes identified by RNA-seq: 165
+Genes identified by both RNA-seq and ChIP-seq: 82
+Genes in mm9: 16322
+
+_____________________________________________
+
+I was then able to put these numbers into R in order to calculate whether the overlap of genes found by ChIP-seq and by differentially expressed RNA-seq genes was statistically significant.
+```{r eval = TRUE}
+
+phyper(82, 211, 16322-211, 4037, lower.tail=FALSE)
+
+# which is equivalent to: 
+
+phyper(82, 4037, 16322-4037, 211, lower.tail=FALSE)
+
+# Since p = 1.734109e-06, it appears the overlap may be the result of a real relationship between the two gene sets.
+```
+
+**Finally, in order to identify possible interesting functions of Foxa1/a2 in the colonic epithelium, I performed gene set enrichment analysis using the Broad Institute software. GSEA annotations are listed for the human versions of the gene IDs. Therefore, it is necessary to create a table linking mouse and human orthologs. This table is made below:**
+```{r eval = TRUE}
+
+library(RCurl)
+x <-getURL("ftp://ftp.informatics.jax.org/pub/reports/HOM_MouseHumanSequence.rpt")
+mouse.HUM <- read.table(text = x, quote=NULL, header = T, sep = "\t")
+head(mouse.HUM)
+
+# Mouse and human data are on alternating lines, so to put them on the same line, I will select alternating indicies and make two data frames.
+even_indexes<-seq(2,40240,2)
+odd_indexes<-seq(1,40241,2)
+human <- data.frame(mouse.HUM[even_indexes, 1], mouse.HUM[even_indexes, 4])
+colnames(human) <-c("index", "Human_name")
+
+# There are multiple mouse RefSeq IDs for different transcripts, which I must account for in building my data frame.
+RefSeq.IDs <-strsplit(as.character(mouse.HUM[odd_indexes, 11]), ',')
+mouse <- data.frame("index" = rep(mouse.HUM[odd_indexes, 1], sapply(RefSeq.IDs, length)), "Mouse_name" = rep(mouse.HUM[odd_indexes, 4], sapply(RefSeq.IDs, length)), "RefSeq.IDs" = unlist(RefSeq.IDs))
+
+# To complete the table, I will merge the mouse and human gene ID tables into one table:
+mouseTOhuman <- merge(human, mouse, by = "index")
+head(mouseTOhuman)
+
+```
+
+**To use the GSEA software to perform analysis, I had to make a GCT file and a CLS file, which are two file formats that the program can load.**
+```{r eval = TRUE}
+
+# Make the GCT file:
+RNAseq.gct <-data.frame(RNAseq.small$Gene, RNAseq.small$Transcript, RNAseq.small$Best.transcript, RNAseq.small$Ctrl462, RNAseq.small$Ctrl1850, RNAseq.small$Ctrl18294, RNAseq.small$Mut1847, RNAseq.small$Mut1088, RNAseq.small$Mut20699)
+colnames(RNAseq.gct) <- c("Mouse_name", "Transcript", "Best", "Ctrl462", "Ctrl1850", "Ctrl18294", "Mut1847", "Mut1088", "Mut20699")
+
+# GSEA only works with human IDs, so I will now merge the RNA-seq data with the conversion spreadsheet I just made.
+RNAseq.gct <- merge(mouseTOhuman, RNAseq.gct, by = "Mouse_name")
+
+#IDs must be unique, so I am filtering out repeats by only using transcripts designated by "best = 1"
+RNAseq.gct <- filter(RNAseq.gct, Best == 1)
+
+# Now I must get rid of the unneccessary columns.
+RNAseq.gct$Best <- NULL
+RNAseq.gct$Mouse_name <- NULL
+RNAseq.gct$index <- NULL
+RNAseq.gct$Transcript <-NULL
+
+# The length of the file is required for proper formatting of a GCT file.
+dim(RNAseq.gct) 
+
+# Export text file:
+write.table(RNAseq.gct, "/Users/juliakieckhaefer/Desktop/Data Science/final-project/RNAseqGCT.txt", quote = FALSE, sep = "\t", row.names = FALSE)
+
+```
+**Edited text file to convert it to GCT format by adding the following top two lines and saving it as ".gct":**
+#1.2
+39649 6
+
+Also created a phenotype annotation text file saved as ".cls" that says the following:
+'6 2 1
+'# Control Mutant
+'Ctrl Ctrl Ctrl Mut Mut Mut
+
+Loaded the GCT and CLS files into GSEA, selected gseaftp.broadinstitute.org://pub/gsea/gene_sets/c2.cp.reactome.v5.0.symbols.gmt, chose "false" for "Collapse dataset to gene symbols", left permutation type as "phenotype" and number of permutations as 1000.
+
+### Results
+**In order to visualize gene expression changes between my mutants and controls, below, I create a boxplot and heatmap using the log2 quantile normalized RNA-seq data.**
+```{r eval = TRUE}
+# Visually confirm data have been normalized by making a boxplot:
+boxplot(RNAseq.small$Ctrl462,RNAseq.small$Ctrl1850, RNAseq.small$Ctrl18294, RNAseq.small$Mut1847, RNAseq.small$Mut1088, RNAseq.small$Mut20699, main = "Quantile normalized RNA-seq data", names = c("C", "C", "C", "M", "M", "M"))
+
+# Create a data frame from significant expression data:
+sig.frame <- data.frame(RNAseq.sig[, 6:11])
+row.names(sig.frame) <- RNAseq.sig$Gene
+head(sig.frame)
+
+# Make the heatmap:
+sig.matrix <- data.matrix(sig.frame)
+heatmap(sig.matrix)
+
+```
+The heatmap shows that the samples independently cluster by genotype.
+
+**To visualize the overlap of genes in the hypergeometric analysis, I drew a venn diagram.**
+```{r eval = TRUE}
+plot.new()
+library(VennDiagram)
+
+venn.plot <- draw.triple.venn(area1 = 211, area2 = 4037, area3 = 16322, n12 = 82, n23 = 4037, n13 = 211, n123 = 82, category = c("RNA-seq", "ChIP-seq", "mm9"), fill = c("blue", "red", "yellow"), lty = "blank", cex = 2, cat.cex = 2, cat.col = c("blue", "red", "green"));
+
+plot.new()
+``` 
+
+GSEA results indicated 1935/2826 gene sets are upregulated in the mutant phenotype. However,
+0 gene sets are significantly enriched at FDR < 25%. This may indicate either that the gene overlap is not significant, or that my FDR for differentially expressed genes is too high. However, 295 gene sets are significantly enriched at nominal pvalue < 1% in the mutant data. Given the colitis phenotype in my mutant mice, it is interesting that a few of the enriched sets are "Reactome cytokine singaling in immune system", "Wienrenga Stat5a targets group 2", and "Zhou TNF signaling 30min", all of which are related to immune function.
+
+Although GSEA did not yield useful information after the first try, by putting the gene list, which was generated by the integration of ChIP-seq and RNA-seq data, into DAVID, I was able to find that glycosyltransferases are enriched in the differentially expressed, bound genes.
+
+Conclusion:
+Targets of Foxa1/a2 transcriptional control in the colon are enriched for glycosyltransferases. Other immune-related functions may also be controlled by the Foxa transcription factors, though further investigation will have to be performed to validate this hypothesis.

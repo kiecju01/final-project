@@ -34,6 +34,7 @@ for line in RNAFile:
 
 print "Genes identified by RNA-seq:", len(RNAgenes)
 
+
 RNAFile.close()
 
 # Find number of genes overlapping between RNA-seq and ChIP-seq data:
@@ -52,7 +53,7 @@ print "Genes identified by both RNA-seq and ChIP-seq:", len(RNAChIP)
 
 mm9 = []
 
-# Open mm9 gene list
+# Open combined RNA-seq/ChIP)-seq data spreadsheet
 IDsheet = "mm9complete.txt"
 IDFile = open(IDsheet, 'r')
 IDFile.readline() #skip header
